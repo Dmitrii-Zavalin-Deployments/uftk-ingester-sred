@@ -1,13 +1,21 @@
 import argparse
 import os
 import csv
+import shutil
 from datetime import datetime
 from PIL import Image
 from PIL.ExifTags import TAGS
 
-# -----------------------------
+# ---------------------------------------------------------
+# Unified working directory for input and output
+# ---------------------------------------------------------
+
+WORKING_DIR = "/data/testing-input-output"
+FIELD_DATA_CSV = os.path.join(WORKING_DIR, "field_data.csv")
+
+# ---------------------------------------------------------
 # Utility functions
-# -----------------------------
+# ---------------------------------------------------------
 
 def load_image(path):
     return Image.open(path)
@@ -21,8 +29,7 @@ def extract_exif(image):
     return exif_data
 
 def normalize_metadata(exif):
-    # Extract timestamp, GPS, etc.
-    # Convert to ISO, extract hour/day-of-year
+    # Placeholder normalization logic
     return {
         "timestamp": "...",
         "date": "...",
@@ -32,11 +39,9 @@ def normalize_metadata(exif):
 
 def generate_observation_id():
     today = datetime.now().strftime("%Y%m%d")
-    # Incremental counter logic can be added here
     return f"OBS-{today}-001"
 
 def manual_entry_prompt():
-    # Ask user for date, time, notes, etc.
     return {
         "timestamp": "...",
         "date": "...",
@@ -61,38 +66,66 @@ def create_csv_row(obs_id, metadata, filename, observation_type):
         "Notes": metadata.get("notes", "")
     }
 
-def append_to_csv(row, csv_path="field_data.csv"):
+def append_to_csv(row, csv_path=FIELD_DATA_CSV):
+    os.makedirs(os.path.dirname(csv_path), exist_ok=True)
     file_exists = os.path.isfile(csv_path)
+
     with open(csv_path, "a", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=row.keys())
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
 
-# -----------------------------
-# Main
-# -----------------------------
+# ---------------------------------------------------------
+# Main ingestion logic
+# ---------------------------------------------------------
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--photo", help="Path to photo")
-    parser.add_argument("--manual", action="store_true")
-    args = parser.parse_args()
-
+def process_photo(photo_path):
+    """Process a single photo: extract metadata, rename, copy forward."""
     obs_id = generate_observation_id()
 
-    if args.manual:
-        metadata = manual_entry_prompt()
-        row = create_csv_row(obs_id, metadata, "MANUAL_ENTRY", "manual")
-        append_to_csv(row)
-        return
-
-    image = load_image(args.photo)
+    # Load and extract EXIF
+    image = load_image(photo_path)
     exif = extract_exif(image)
     metadata = normalize_metadata(exif)
 
-    row = create_csv_row(obs_id, metadata, os.path.basename(args.photo), "photo")
+    # Prepare output filename
+    base = os.path.basename(photo_path)
+    name, ext = os.path.splitext(base)
+    output_filename = f"{name}_ingested{ext}"
+    output_path = os.path.join(WORKING_DIR, output_filename)
+
+    # Copy image forward
+    shutil.copy2(photo_path, output_path)
+
+    # Write CSV row
+    row = create_csv_row(obs_id, metadata, output_filename, "photo")
     append_to_csv(row)
+
+    print(f"✓ Ingested: {photo_path} → {output_path}")
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manual", action="store_true")
+    args = parser.parse_args()
+
+    os.makedirs(WORKING_DIR, exist_ok=True)
+
+    if args.manual:
+        obs_id = generate_observation_id()
+        metadata = manual_entry_prompt()
+        row = create_csv_row(obs_id, metadata, "MANUAL_ENTRY", "manual")
+        append_to_csv(row)
+        print("✓ Manual entry added to field_data.csv")
+        return
+
+    # Process all photos in the working directory
+    for filename in os.listdir(WORKING_DIR):
+        path = os.path.join(WORKING_DIR, filename)
+        if os.path.isfile(path) and filename.lower().endswith((".jpg", ".jpeg", ".png")):
+            process_photo(path)
+
+    print("🎉 Ingestion complete. Outputs written to /data/testing-input-output")
 
 if __name__ == "__main__":
     main()
