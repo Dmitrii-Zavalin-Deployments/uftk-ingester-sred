@@ -66,7 +66,15 @@ def create_csv_row(obs_id, metadata, filename, observation_type):
         "Notes": metadata.get("notes", "")
     }
 
-def append_to_csv(row, csv_path=FIELD_DATA_CSV):
+# ---------------------------------------------------------
+# FIXED append_to_csv
+# ---------------------------------------------------------
+
+def append_to_csv(row, csv_path=None):
+    # Allow monkeypatching in tests
+    if csv_path is None:
+        csv_path = FIELD_DATA_CSV
+
     os.makedirs(os.path.dirname(csv_path), exist_ok=True)
     file_exists = os.path.isfile(csv_path)
 
@@ -129,6 +137,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
