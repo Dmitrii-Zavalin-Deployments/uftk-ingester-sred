@@ -33,49 +33,11 @@ def extract_exif(image):
     return exif_data
 
 # ---------------------------------------------------------
-# GPS conversion helper (Google Maps format)
-# ---------------------------------------------------------
-
-def convert_gps_to_decimal(gps_info):
-    """Convert GPS EXIF data (float or rational) to Google Maps decimal format."""
-    try:
-        lat_ref = gps_info.get(1)
-        lat = gps_info.get(2)
-        lon_ref = gps_info.get(3)
-        lon = gps_info.get(4)
-
-        def to_deg(value):
-            # Case 1: Xiaomi / Android float format
-            if isinstance(value[0], float):
-                d, m, s = value
-                return d + (m / 60.0) + (s / 3600.0)
-
-            # Case 2: Standard EXIF rational tuples
-            d = value[0][0] / value[0][1]
-            m = value[1][0] / value[1][1]
-            s = value[2][0] / value[2][1]
-            return d + (m / 60.0) + (s / 3600.0)
-
-        lat_deg = to_deg(lat)
-        lon_deg = to_deg(lon)
-
-        if lat_ref == "S":
-            lat_deg = -lat_deg
-        if lon_ref == "W":
-            lon_deg = -lon_deg
-
-        return f"{lat_deg:.6f}, {lon_deg:.6f}"
-
-    except Exception as e:
-        print("GPS conversion error:", e)
-        return "..."
-
-# ---------------------------------------------------------
-# Metadata normalization (Option B + test compatibility)
+# Metadata normalization (RAW GPSINFO ONLY)
 # ---------------------------------------------------------
 
 def normalize_metadata(exif):
-    """Extract timestamp, exact time, part_of_day, GPS, camera info, and confidence score."""
+    """Extract timestamp, time, part_of_day, RAW GPSINFO, camera info, and confidence score."""
 
     timestamp = exif.get("DateTimeOriginal") or exif.get("DateTime")
 
@@ -105,10 +67,13 @@ def normalize_metadata(exif):
     else:
         timestamp = "..."
 
-    # GPS
+    # ---------------------------------------------------------
+    # GPS — store RAW GPSINFO block exactly as-is
+    # ---------------------------------------------------------
     gps_info = exif.get("GPSInfo")
     print(f"GPSInfo: {gps_info}")
-    gps = convert_gps_to_decimal(gps_info) if gps_info else "..."
+
+    gps = str(gps_info) if gps_info else "..."
 
     # Camera metadata
     camera_model = exif.get("Model", "...") or "..."
@@ -131,7 +96,7 @@ def normalize_metadata(exif):
         "date": date,
         "time_of_day": time_of_day,
         "part_of_day": part_of_day,
-        "gps": gps,
+        "gps": gps,  # RAW GPSINFO stored here
         "camera_model": camera_model,
         "exposure_time": str(exposure_time),
         "iso": str(iso),
@@ -169,7 +134,7 @@ def manual_entry_prompt():
     }
 
 # ---------------------------------------------------------
-# CSV row creation (must use .get() for test compatibility)
+# CSV row creation
 # ---------------------------------------------------------
 
 def create_csv_row(obs_id, metadata, filename, observation_type):
