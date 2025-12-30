@@ -33,11 +33,11 @@ def extract_exif(image):
     return exif_data
 
 # ---------------------------------------------------------
-# GPS conversion helper
+# GPS conversion helper (Google Maps format)
 # ---------------------------------------------------------
 
 def convert_gps_to_decimal(gps_info):
-    """Convert GPS EXIF rational tuples to decimal degrees."""
+    """Convert GPS EXIF data (float or rational) to Google Maps decimal format."""
     try:
         lat_ref = gps_info.get(1)
         lat = gps_info.get(2)
@@ -45,6 +45,12 @@ def convert_gps_to_decimal(gps_info):
         lon = gps_info.get(4)
 
         def to_deg(value):
+            # Case 1: Xiaomi / Android float format
+            if isinstance(value[0], float):
+                d, m, s = value
+                return d + (m / 60.0) + (s / 3600.0)
+
+            # Case 2: Standard EXIF rational tuples
             d = value[0][0] / value[0][1]
             m = value[1][0] / value[1][1]
             s = value[2][0] / value[2][1]
@@ -59,8 +65,10 @@ def convert_gps_to_decimal(gps_info):
             lon_deg = -lon_deg
 
         return f"{lat_deg:.6f}, {lon_deg:.6f}"
-    except Exception:
-        return ""
+
+    except Exception as e:
+        print("GPS conversion error:", e)
+        return "..."
 
 # ---------------------------------------------------------
 # Metadata normalization (Option B + test compatibility)
@@ -94,7 +102,6 @@ def normalize_metadata(exif):
 
         except Exception:
             timestamp = "..."
-
     else:
         timestamp = "..."
 
