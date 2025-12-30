@@ -76,6 +76,10 @@ jobs:
           PYTHONPATH=src pytest tests/ --verbose --cov=src --cov-report=term-missing
           echo "✅ Unit tests and code coverage check completed."
 
+      - name: 📁 Ensure working directory exists
+        run: |
+          mkdir -p /data/testing-input-output
+
       - name: ☁️ Download input files from Dropbox
         env:
           APP_KEY: ${{ secrets.APP_KEY }}
@@ -85,10 +89,6 @@ jobs:
           chmod +x src/download_from_dropbox.sh
           src/download_from_dropbox.sh
 
-      - name: 📁 Ensure working directory exists
-        run: |
-          mkdir -p /data/testing-input-output
-            
       - name: 🔧 Run Universal Field Toolkit Ingester
         run: |
           python3 src/universal_field_toolkit_ingester_sred.py
