@@ -51,9 +51,17 @@ def test_process_photo_copies_and_updates_csv(tmp_path, monkeypatch, capsys):
 
     assert len(rows) == 1
     row = rows[0]
+
+    # Required fields
     assert row["Observation_ID"] == "OBS-20240102-001"
     assert row["Photo_Filename"] == "photo_ingested.jpg"
     assert row["Observation_Type"] == "photo"
+
+    # Optional metadata fields should exist but may be placeholders
+    assert "Timestamp" in row
+    assert "Date" in row
+    assert "Time_Of_Day" in row
+    assert "GPS" in row
 
     captured = capsys.readouterr()
     assert "Ingested:" in captured.out
@@ -87,8 +95,16 @@ def test_main_manual_mode(tmp_path, monkeypatch, capsys):
         rows = list(reader)
 
     assert len(rows) == 1
-    assert rows[0]["Observation_Type"] == "manual"
-    assert rows[0]["Photo_Filename"] == "MANUAL_ENTRY"
+    row = rows[0]
+
+    assert row["Observation_Type"] == "manual"
+    assert row["Photo_Filename"] == "MANUAL_ENTRY"
+
+    # Manual metadata placeholders
+    assert row["Timestamp"] == "..."
+    assert row["Date"] == "..."
+    assert row["Time_Of_Day"] == "..."
+    assert row["GPS"] == "..."
 
 
 # ---------------------------------------------------------

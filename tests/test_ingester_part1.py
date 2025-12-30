@@ -89,7 +89,7 @@ def test_manual_entry_prompt_structure():
     assert data["timestamp"] == "..."
     assert data["date"] == "..."
     assert data["time_of_day"] == "..."
-    assert data["gps"] is None
+    assert data["gps"] == "..."
     assert data["notes"] == ""
     assert data["human_influence_score"] == 0
     assert data["human_influence_note"] == ""
