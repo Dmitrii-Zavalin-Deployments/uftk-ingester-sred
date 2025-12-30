@@ -10,8 +10,9 @@ from PIL.ExifTags import TAGS
 # Unified working directory for input and output
 # ---------------------------------------------------------
 
-WORKING_DIR = "/data/testing-input-output"
-FIELD_DATA_CSV = os.path.join(WORKING_DIR, "field_data.csv")
+# Allow CI or production to override via environment variables
+WORKING_DIR = os.environ.get("WORKING_DIR", "/data/testing-input-output")
+FIELD_DATA_CSV = os.environ.get("FIELD_DATA_CSV", os.path.join(WORKING_DIR, "field_data.csv"))
 
 # ---------------------------------------------------------
 # Utility functions
@@ -133,9 +134,10 @@ def main():
         if os.path.isfile(path) and filename.lower().endswith((".jpg", ".jpeg", ".png")):
             process_photo(path)
 
-    print("🎉 Ingestion complete. Outputs written to /data/testing-input-output")
+    print(f"🎉 Ingestion complete. Outputs written to {WORKING_DIR}")
 
 if __name__ == "__main__":
     main()
+
 
 
