@@ -10,7 +10,6 @@ from PIL.ExifTags import TAGS
 # Unified working directory for input and output
 # ---------------------------------------------------------
 
-# Allow CI or production to override via environment variables
 WORKING_DIR = os.environ.get("WORKING_DIR", "/data/testing-input-output")
 FIELD_DATA_CSV = os.environ.get("FIELD_DATA_CSV", os.path.join(WORKING_DIR, "field_data.csv"))
 
@@ -22,36 +21,158 @@ def load_image(path):
     return Image.open(path)
 
 def extract_exif(image):
+    """Extract EXIF metadata and decode tag names."""
     exif_data = {}
     raw = image._getexif() or {}
+
     for tag, value in raw.items():
         decoded = TAGS.get(tag, tag)
         exif_data[decoded] = value
+
+    # Debug printout for troubleshooting
+    print("📸 EXIF keys found:", list(exif_data.keys()))
+
     return exif_data
 
+# ---------------------------------------------------------
+# GPS conversion helper
+# ---------------------------------------------------------
+
+def convert_gps_to_decimal(gps_info):
+    """Convert GPS EXIF rational tuples to decimal degrees."""
+    try:
+        lat_ref = gps_info.get(1)
+        lat = gps_info.get(2)
+        lon_ref = gps_info.get(3)
+        lon = gps_info.get(4)
+
+        def to_deg(value):
+            d = value[0][0] / value[0][1]
+            m = value[1][0] / value[1][1]
+            s = value[2][0] / value[2][1]
+            return d + (m / 60.0) + (s / 3600.0)
+
+        lat_deg = to_deg(lat)
+        lon_deg = to_deg(lon)
+
+        if lat_ref == "S":
+            lat_deg = -lat_deg
+        if lon_ref == "W":
+            lon_deg = -lon_deg
+
+        return f"{lat_deg:.6f}, {lon_deg:.6f}"
+    except Exception:
+        return ""
+
+# ---------------------------------------------------------
+# Metadata normalization (Option B)
+# ---------------------------------------------------------
+
 def normalize_metadata(exif):
-    # Placeholder normalization logic
+    """Extract timestamp, exact time, part_of_day, GPS, camera info, and confidence score."""
+
+    # -----------------------------
+    # Timestamp
+    # -----------------------------
+    timestamp = exif.get("DateTimeOriginal") or exif.get("DateTime")
+
+    if timestamp:
+        try:
+            dt = datetime.strptime(timestamp, "%Y:%m:%d %H:%M:%S")
+            date = dt.strftime("%Y-%m-%d")
+            time_of_day = dt.strftime("%H:%M:%S")  # exact time
+
+            hour = dt.hour
+            if hour < 6:
+                part_of_day = "night"
+            elif hour < 12:
+                part_of_day = "morning"
+            elif hour < 18:
+                part_of_day = "afternoon"
+            else:
+                part_of_day = "evening"
+
+        except Exception:
+            date = ""
+            time_of_day = ""
+            part_of_day = ""
+    else:
+        # Fallback to file creation time
+        date = ""
+        time_of_day = ""
+        part_of_day = ""
+
+    # -----------------------------
+    # GPS
+    # -----------------------------
+    gps_info = exif.get("GPSInfo")
+    gps = convert_gps_to_decimal(gps_info) if gps_info else ""
+
+    # -----------------------------
+    # Camera metadata
+    # -----------------------------
+    camera_model = exif.get("Model", "")
+    exposure_time = exif.get("ExposureTime", "")
+    iso = exif.get("ISOSpeedRatings", "")
+    focal_length = exif.get("FocalLength", "")
+
+    # -----------------------------
+    # Confidence score
+    # -----------------------------
+    score = 0
+    if timestamp: score += 1
+    if gps: score += 1
+    if camera_model: score += 1
+    if iso: score += 1
+    if focal_length: score += 1
+
+    confidence = f"{score}/5"
+
     return {
-        "timestamp": "...",
-        "date": "...",
-        "time_of_day": "...",
-        "gps": "...",
+        "timestamp": timestamp or "",
+        "date": date or "",
+        "time_of_day": time_of_day or "",
+        "part_of_day": part_of_day or "",
+        "gps": gps or "",
+        "camera_model": camera_model,
+        "exposure_time": str(exposure_time),
+        "iso": str(iso),
+        "focal_length": str(focal_length),
+        "confidence": confidence,
     }
+
+# ---------------------------------------------------------
+# Observation ID
+# ---------------------------------------------------------
 
 def generate_observation_id():
     today = datetime.now().strftime("%Y%m%d")
     return f"OBS-{today}-001"
 
+# ---------------------------------------------------------
+# Manual entry
+# ---------------------------------------------------------
+
 def manual_entry_prompt():
     return {
-        "timestamp": "...",
-        "date": "...",
-        "time_of_day": "...",
-        "gps": None,
+        "timestamp": "",
+        "date": "",
+        "time_of_day": "",
+        "part_of_day": "",
+        "gps": "",
+        "camera_model": "",
+        "exposure_time": "",
+        "iso": "",
+        "focal_length": "",
+        "confidence": "0/5",
         "notes": "",
         "human_influence_score": 0,
         "human_influence_note": "",
     }
+
+# ---------------------------------------------------------
+# CSV row creation
+# ---------------------------------------------------------
 
 def create_csv_row(obs_id, metadata, filename, observation_type):
     return {
@@ -61,18 +182,23 @@ def create_csv_row(obs_id, metadata, filename, observation_type):
         "Timestamp": metadata["timestamp"],
         "Date": metadata["date"],
         "Time_Of_Day": metadata["time_of_day"],
+        "Part_Of_Day": metadata["part_of_day"],
         "GPS": metadata["gps"],
+        "Camera_Model": metadata["camera_model"],
+        "Exposure_Time": metadata["exposure_time"],
+        "ISO": metadata["iso"],
+        "Focal_Length": metadata["focal_length"],
+        "Confidence": metadata["confidence"],
         "Human_Influence_Score": metadata.get("human_influence_score", 0),
         "Human_Influence_Note": metadata.get("human_influence_note", ""),
         "Notes": metadata.get("notes", "")
     }
 
 # ---------------------------------------------------------
-# FIXED append_to_csv
+# CSV writer
 # ---------------------------------------------------------
 
 def append_to_csv(row, csv_path=None):
-    # Allow monkeypatching in tests
     if csv_path is None:
         csv_path = FIELD_DATA_CSV
 
@@ -90,24 +216,19 @@ def append_to_csv(row, csv_path=None):
 # ---------------------------------------------------------
 
 def process_photo(photo_path):
-    """Process a single photo: extract metadata, rename, copy forward."""
     obs_id = generate_observation_id()
 
-    # Load and extract EXIF
     image = load_image(photo_path)
     exif = extract_exif(image)
     metadata = normalize_metadata(exif)
 
-    # Prepare output filename
     base = os.path.basename(photo_path)
     name, ext = os.path.splitext(base)
     output_filename = f"{name}_ingested{ext}"
     output_path = os.path.join(WORKING_DIR, output_filename)
 
-    # Copy image forward
     shutil.copy2(photo_path, output_path)
 
-    # Write CSV row
     row = create_csv_row(obs_id, metadata, output_filename, "photo")
     append_to_csv(row)
 
@@ -128,7 +249,6 @@ def main():
         print("✓ Manual entry added to field_data.csv")
         return
 
-    # Process all photos in the working directory
     for filename in os.listdir(WORKING_DIR):
         path = os.path.join(WORKING_DIR, filename)
         if os.path.isfile(path) and filename.lower().endswith((".jpg", ".jpeg", ".png")):
