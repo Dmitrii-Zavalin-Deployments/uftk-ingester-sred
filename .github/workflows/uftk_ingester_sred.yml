@@ -50,6 +50,8 @@ jobs:
     env:
       PYTHONPATH: ${{ github.workspace }}
       ENABLE_RULE_DEBUG: true
+      WORKING_DIR: ${{ github.workspace }}/data/testing-input-output
+      FIELD_DATA_CSV: ${{ github.workspace }}/data/testing-input-output/field_data.csv
 
     steps:
       - name: 🛎️ Checkout repository
@@ -76,9 +78,9 @@ jobs:
           PYTHONPATH=src pytest tests/ --verbose --cov=src --cov-report=term-missing
           echo "✅ Unit tests and code coverage check completed."
 
-      - name: 📁 Ensure working directory exists
+      - name: 📁 Ensure working directory exists (CI-safe)
         run: |
-          mkdir -p /data/testing-input-output
+          mkdir -p "${{ env.WORKING_DIR }}"
 
       - name: ☁️ Download input files from Dropbox
         env:
@@ -87,9 +89,12 @@ jobs:
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: |
           chmod +x src/download_from_dropbox.sh
-          src/download_from_dropbox.sh
+          src/download_from_dropbox.sh "${{ env.WORKING_DIR }}"
 
       - name: 🔧 Run Universal Field Toolkit Ingester
+        env:
+          WORKING_DIR: ${{ env.WORKING_DIR }}
+          FIELD_DATA_CSV: ${{ env.FIELD_DATA_CSV }}
         run: |
           python3 src/universal_field_toolkit_ingester_sred.py
 
@@ -100,7 +105,7 @@ jobs:
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
         run: |
           chmod +x src/upload_to_dropbox.sh
-          src/upload_to_dropbox.sh
+          src/upload_to_dropbox.sh "${{ env.WORKING_DIR }}"
 
       - name: 📝 Log trigger & push
         if: always()
@@ -118,6 +123,5 @@ jobs:
 
           git pull --rebase origin main || echo "⚠️ Rebase failed — check for conflicts"
           git push origin main || echo "❌ Push failed — remote may have diverged"
-
 
 
