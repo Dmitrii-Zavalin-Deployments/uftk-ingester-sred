@@ -100,6 +100,7 @@ def normalize_metadata(exif):
 
     # GPS
     gps_info = exif.get("GPSInfo")
+    print(f"GPSInfo: {gps_info}")
     gps = convert_gps_to_decimal(gps_info) if gps_info else "..."
 
     # Camera metadata
