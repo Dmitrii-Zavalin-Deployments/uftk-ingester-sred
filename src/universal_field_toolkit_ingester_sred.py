@@ -29,9 +29,7 @@ def extract_exif(image):
         decoded = TAGS.get(tag, tag)
         exif_data[decoded] = value
 
-    # Debug printout for troubleshooting
     print("📸 EXIF keys found:", list(exif_data.keys()))
-
     return exif_data
 
 # ---------------------------------------------------------
@@ -65,22 +63,24 @@ def convert_gps_to_decimal(gps_info):
         return ""
 
 # ---------------------------------------------------------
-# Metadata normalization (Option B)
+# Metadata normalization (Option B + test compatibility)
 # ---------------------------------------------------------
 
 def normalize_metadata(exif):
     """Extract timestamp, exact time, part_of_day, GPS, camera info, and confidence score."""
 
-    # -----------------------------
-    # Timestamp
-    # -----------------------------
     timestamp = exif.get("DateTimeOriginal") or exif.get("DateTime")
+
+    # Default placeholders required by tests
+    date = "..."
+    time_of_day = "..."
+    part_of_day = "..."
 
     if timestamp:
         try:
             dt = datetime.strptime(timestamp, "%Y:%m:%d %H:%M:%S")
             date = dt.strftime("%Y-%m-%d")
-            time_of_day = dt.strftime("%H:%M:%S")  # exact time
+            time_of_day = dt.strftime("%H:%M:%S")
 
             hour = dt.hour
             if hour < 6:
@@ -93,47 +93,37 @@ def normalize_metadata(exif):
                 part_of_day = "evening"
 
         except Exception:
-            date = ""
-            time_of_day = ""
-            part_of_day = ""
+            timestamp = "..."
+
     else:
-        # Fallback to file creation time
-        date = ""
-        time_of_day = ""
-        part_of_day = ""
+        timestamp = "..."
 
-    # -----------------------------
     # GPS
-    # -----------------------------
     gps_info = exif.get("GPSInfo")
-    gps = convert_gps_to_decimal(gps_info) if gps_info else ""
+    gps = convert_gps_to_decimal(gps_info) if gps_info else "..."
 
-    # -----------------------------
     # Camera metadata
-    # -----------------------------
-    camera_model = exif.get("Model", "")
-    exposure_time = exif.get("ExposureTime", "")
-    iso = exif.get("ISOSpeedRatings", "")
-    focal_length = exif.get("FocalLength", "")
+    camera_model = exif.get("Model", "...") or "..."
+    exposure_time = exif.get("ExposureTime", "...") or "..."
+    iso = exif.get("ISOSpeedRatings", "...") or "..."
+    focal_length = exif.get("FocalLength", "...") or "..."
 
-    # -----------------------------
     # Confidence score
-    # -----------------------------
     score = 0
-    if timestamp: score += 1
-    if gps: score += 1
-    if camera_model: score += 1
-    if iso: score += 1
-    if focal_length: score += 1
+    if timestamp != "...": score += 1
+    if gps != "...": score += 1
+    if camera_model != "...": score += 1
+    if iso != "...": score += 1
+    if focal_length != "...": score += 1
 
     confidence = f"{score}/5"
 
     return {
-        "timestamp": timestamp or "",
-        "date": date or "",
-        "time_of_day": time_of_day or "",
-        "part_of_day": part_of_day or "",
-        "gps": gps or "",
+        "timestamp": timestamp,
+        "date": date,
+        "time_of_day": time_of_day,
+        "part_of_day": part_of_day,
+        "gps": gps,
         "camera_model": camera_model,
         "exposure_time": str(exposure_time),
         "iso": str(iso),
@@ -150,28 +140,28 @@ def generate_observation_id():
     return f"OBS-{today}-001"
 
 # ---------------------------------------------------------
-# Manual entry
+# Manual entry (tests require "..." placeholders)
 # ---------------------------------------------------------
 
 def manual_entry_prompt():
     return {
-        "timestamp": "",
-        "date": "",
-        "time_of_day": "",
-        "part_of_day": "",
-        "gps": "",
-        "camera_model": "",
-        "exposure_time": "",
-        "iso": "",
-        "focal_length": "",
-        "confidence": "0/5",
+        "timestamp": "...",
+        "date": "...",
+        "time_of_day": "...",
+        "part_of_day": "...",
+        "gps": "...",
+        "camera_model": "...",
+        "exposure_time": "...",
+        "iso": "...",
+        "focal_length": "...",
+        "confidence": "...",
         "notes": "",
         "human_influence_score": 0,
         "human_influence_note": "",
     }
 
 # ---------------------------------------------------------
-# CSV row creation
+# CSV row creation (must use .get() for test compatibility)
 # ---------------------------------------------------------
 
 def create_csv_row(obs_id, metadata, filename, observation_type):
@@ -179,16 +169,16 @@ def create_csv_row(obs_id, metadata, filename, observation_type):
         "Observation_ID": obs_id,
         "Photo_Filename": filename,
         "Observation_Type": observation_type,
-        "Timestamp": metadata["timestamp"],
-        "Date": metadata["date"],
-        "Time_Of_Day": metadata["time_of_day"],
-        "Part_Of_Day": metadata["part_of_day"],
-        "GPS": metadata["gps"],
-        "Camera_Model": metadata["camera_model"],
-        "Exposure_Time": metadata["exposure_time"],
-        "ISO": metadata["iso"],
-        "Focal_Length": metadata["focal_length"],
-        "Confidence": metadata["confidence"],
+        "Timestamp": metadata.get("timestamp", "..."),
+        "Date": metadata.get("date", "..."),
+        "Time_Of_Day": metadata.get("time_of_day", "..."),
+        "Part_Of_Day": metadata.get("part_of_day", "..."),
+        "GPS": metadata.get("gps", "..."),
+        "Camera_Model": metadata.get("camera_model", "..."),
+        "Exposure_Time": metadata.get("exposure_time", "..."),
+        "ISO": metadata.get("iso", "..."),
+        "Focal_Length": metadata.get("focal_length", "..."),
+        "Confidence": metadata.get("confidence", "..."),
         "Human_Influence_Score": metadata.get("human_influence_score", 0),
         "Human_Influence_Note": metadata.get("human_influence_note", ""),
         "Notes": metadata.get("notes", "")
